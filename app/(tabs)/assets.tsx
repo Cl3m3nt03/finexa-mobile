@@ -7,6 +7,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Ionicons } from '@expo/vector-icons'
+import { router } from 'expo-router'
 import { colors, fontSize, radius, spacing } from '@/constants/theme'
 import { apiFetch, formatCurrency } from '@/lib/api'
 
@@ -139,7 +140,10 @@ export default function AssetsScreen() {
       >
         {/* ── Header ─────────────────────────────────────────────────── */}
         <View style={s.pageHeader}>
-          <View>
+          <TouchableOpacity onPress={() => router.back()} style={s.backBtn} activeOpacity={0.7}>
+            <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
+          </TouchableOpacity>
+          <View style={{ flex: 1 }}>
             <Text style={s.pageTitle}>Mes actifs</Text>
             <Text style={s.pageSub}>{assets.length} actif{assets.length > 1 ? 's' : ''} · {formatCurrency(total)}</Text>
           </View>
@@ -296,7 +300,8 @@ const s = StyleSheet.create({
   safe:   { flex: 1, backgroundColor: colors.background },
   scroll: { padding: spacing.md, gap: spacing.md, paddingBottom: 40 },
 
-  pageHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  pageHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  backBtn:    { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', marginTop: 2 },
   pageTitle:  { color: colors.textPrimary, fontSize: fontSize['2xl'], fontWeight: '700', letterSpacing: -0.5 },
   pageSub:    { color: colors.textMuted,   fontSize: fontSize.sm, marginTop: 2 },
 

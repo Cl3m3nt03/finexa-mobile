@@ -100,7 +100,7 @@ export default function RegisterScreen() {
           <Text style={s.subtitle}>
             {step === 'otp'
               ? `Code envoyé à ${email}`
-              : 'Rejoignez Financy gratuitement'}
+              : 'Rejoignez Finexa gratuitement'}
           </Text>
         </View>
 

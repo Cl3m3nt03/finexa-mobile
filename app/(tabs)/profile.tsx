@@ -20,12 +20,12 @@ export default function ProfileScreen() {
     queryFn:  () => apiFetch('/api/portfolio/stats'),
   })
 
-  const { data: assetsData } = useQuery<{ assets: unknown[] }>({
+  const { data: assetsData } = useQuery<unknown[]>({
     queryKey: ['assets'],
     queryFn:  () => apiFetch('/api/assets'),
   })
 
-  const { data: txData } = useQuery<{ transactions: unknown[] }>({
+  const { data: txData } = useQuery<unknown[]>({
     queryKey: ['transactions'],
     queryFn:  () => apiFetch('/api/transactions?limit=1000'),
   })
@@ -41,8 +41,8 @@ export default function ProfileScreen() {
     ])
   }
 
-  const totalAssets = assetsData?.assets?.length ?? 0
-  const totalTx     = txData?.transactions?.length ?? 0
+  const totalAssets = assetsData?.length ?? 0
+  const totalTx     = txData?.length ?? 0
   const totalWealth = stats?.totalWealth ?? 0
 
   const statItems = [

@@ -5,6 +5,7 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
+import { router } from 'expo-router'
 import { colors, fontSize, radius, spacing } from '@/constants/theme'
 import { getToken } from '@/lib/auth'
 import { API_BASE } from '@/constants/api'
@@ -83,12 +84,15 @@ export default function AssistantScreen() {
       >
         {/* ── Header ─────────────────────────────────────────────────── */}
         <View style={s.header}>
+          <TouchableOpacity onPress={() => router.back()} style={s.backBtn} activeOpacity={0.7}>
+            <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
+          </TouchableOpacity>
           <View style={s.headerIconWrap}>
             <Ionicons name="sparkles" size={20} color={colors.accent} />
           </View>
-          <View>
-            <Text style={s.headerTitle}>Financy Assistant</Text>
-            <Text style={s.headerSub}>Propulsé par Gemini</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={s.headerTitle}>Finexa Assistant</Text>
+            <Text style={s.headerSub}>Propulsé par Gemini AI</Text>
           </View>
         </View>
 
@@ -179,6 +183,7 @@ const s = StyleSheet.create({
     borderBottomWidth: 1, borderBottomColor: colors.border,
     backgroundColor: colors.surface,
   },
+  backBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
   headerIconWrap: {
     width: 42, height: 42, borderRadius: radius.md,
     backgroundColor: colors.accent + '15',

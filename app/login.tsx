@@ -50,7 +50,7 @@ export default function LoginScreen() {
         <View style={s.logoIcon}>
           <Text style={s.logoLetter}>F</Text>
         </View>
-        <Text style={s.logoText}>Financy</Text>
+        <Text style={s.logoText}>Finexa</Text>
         <Text style={s.logoSub}>Gestion de patrimoine</Text>
       </View>
 

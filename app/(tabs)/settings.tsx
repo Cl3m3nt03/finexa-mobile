@@ -6,6 +6,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Ionicons } from '@expo/vector-icons'
+import { router } from 'expo-router'
 import { colors, fontSize, radius, spacing } from '@/constants/theme'
 import { apiFetch } from '@/lib/api'
 
@@ -354,11 +355,17 @@ function AlertsSection() {
 export default function SettingsScreen() {
   return (
     <SafeAreaView style={s.safe}>
+      <View style={s.header}>
+        <TouchableOpacity onPress={() => router.back()} style={s.backBtn} activeOpacity={0.7}>
+          <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
+        </TouchableOpacity>
+        <Text style={s.headerTitle}>Paramètres</Text>
+        <View style={s.backBtn} />
+      </View>
       <ScrollView
         contentContainerStyle={s.scroll}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={s.pageTitle}>Paramètres</Text>
 
         <PasswordSection />
         <TwoFASection />
@@ -366,7 +373,7 @@ export default function SettingsScreen() {
 
         {/* ── Version info ─────────────────────────────────────────────── */}
         <View style={{ alignItems: 'center', paddingBottom: 8 }}>
-          <Text style={{ color: colors.textMuted, fontSize: fontSize.xs }}>Financy Mobile · v1.0.0</Text>
+          <Text style={{ color: colors.textMuted, fontSize: fontSize.xs }}>Finexa · v1.0.0</Text>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -375,6 +382,13 @@ export default function SettingsScreen() {
 
 const s = StyleSheet.create({
   safe:   { flex: 1, backgroundColor: colors.background },
+  header: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
+    borderBottomWidth: 1, borderBottomColor: colors.border,
+  },
+  backBtn:     { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { fontSize: fontSize.lg, fontWeight: '600', color: colors.textPrimary },
   scroll: { padding: spacing.md, gap: spacing.md, paddingBottom: 40 },
 
   pageTitle: { color: colors.textPrimary, fontSize: fontSize['2xl'], fontWeight: '700', letterSpacing: -0.5, marginBottom: 4 },

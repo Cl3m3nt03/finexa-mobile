@@ -15,7 +15,7 @@ const MENU_ITEMS: { label: string; icon: IoniconsName; route: string; color: str
   { label: 'Simulateur',    icon: 'calculator-outline',     route: '/(tabs)/simulator',    color: '#F59E0B',      description: 'Anticipez l\'évolution de votre patrimoine' },
   { label: 'Rapport fiscal', icon: 'receipt-outline',       route: '/(tabs)/fiscal',       color: '#06B6D4',      description: 'Plus-values, PFU, guide 2042-C' },
   { label: 'Collection Pokémon', icon: 'layers-outline',    route: '/(tabs)/pokemon',      color: '#E11D48',      description: 'Suivez la valeur de votre collection' },
-  { label: 'Assistant IA',  icon: 'sparkles-outline',       route: '/(tabs)/assistant',    color: '#8B5CF6',      description: 'Posez vos questions à l\'IA Financy' },
+  { label: 'Assistant IA',  icon: 'sparkles-outline',       route: '/(tabs)/assistant',    color: '#8B5CF6',      description: 'Posez vos questions à l\'IA Finexa' },
   { label: 'Paramètres',    icon: 'settings-outline',       route: '/(tabs)/settings',     color: colors.textMuted, description: 'Mot de passe, 2FA, alertes de prix' },
 ]
 

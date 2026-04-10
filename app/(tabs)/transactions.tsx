@@ -6,6 +6,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Ionicons } from '@expo/vector-icons'
+import { router } from 'expo-router'
 import { colors, fontSize, radius, spacing } from '@/constants/theme'
 import { apiFetch, formatCurrency } from '@/lib/api'
 
@@ -49,7 +50,7 @@ const EMPTY_FORM = {
 export default function TransactionsScreen() {
   const qc = useQueryClient()
 
-  const { data, isLoading, refetch, isRefetching } = useQuery<{ transactions: Transaction[] }>({
+  const { data, isLoading, refetch, isRefetching } = useQuery<Transaction[]>({
     queryKey: ['transactions'],
     queryFn:  () => apiFetch('/api/transactions?limit=100'),
   })
@@ -57,7 +58,7 @@ export default function TransactionsScreen() {
   // ── Filters ───────────────────────────────────────────────────────────
   const [filter, setFilter] = useState<TxType | 'ALL'>('ALL')
 
-  const transactions = (data?.transactions ?? []).filter(tx => filter === 'ALL' || tx.type === filter)
+  const transactions = (data ?? []).filter(tx => filter === 'ALL' || tx.type === filter)
 
   // ── Group by date ─────────────────────────────────────────────────────
   const grouped: Record<string, Transaction[]> = {}
@@ -122,7 +123,10 @@ export default function TransactionsScreen() {
       >
         {/* ── Header ──────────────────────────────────────────────────── */}
         <View style={s.pageHeader}>
-          <Text style={s.pageTitle}>Transactions</Text>
+          <TouchableOpacity onPress={() => router.back()} style={s.backBtn} activeOpacity={0.7}>
+            <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
+          </TouchableOpacity>
+          <Text style={[s.pageTitle, { flex: 1 }]}>Transactions</Text>
           <TouchableOpacity onPress={openAdd} style={s.addBtn}>
             <Ionicons name="add" size={22} color={colors.textPrimary} />
           </TouchableOpacity>
@@ -302,7 +306,8 @@ const s = StyleSheet.create({
   safe:   { flex: 1, backgroundColor: colors.background },
   scroll: { padding: spacing.md, gap: spacing.sm, paddingBottom: 40 },
 
-  pageHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
+  pageHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 4 },
+  backBtn:    { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
   pageTitle:  { color: colors.textPrimary, fontSize: fontSize['2xl'], fontWeight: '700', letterSpacing: -0.5 },
   addBtn:     { width: 40, height: 40, borderRadius: radius.full, backgroundColor: colors.surface2, alignItems: 'center', justifyContent: 'center' },
 

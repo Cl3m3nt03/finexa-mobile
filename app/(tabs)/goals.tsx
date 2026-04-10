@@ -17,6 +17,15 @@ interface Goal {
   currency:    string
   targetDate:  string | null
   notes:       string | null
+  assetId:     string | null
+  assetName:   string | null
+}
+
+interface Asset {
+  id:    string
+  name:  string
+  type:  string
+  value: number
 }
 
 interface DashboardStats { totalWealth: number }
@@ -43,7 +52,7 @@ function pmtMonthly(pv: number, fv: number, months: number, rate = 0.07 / 12) {
 export default function GoalsScreen() {
   const queryClient = useQueryClient()
   const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ name: '', targetValue: '', targetDate: '', notes: '' })
+  const [form, setForm] = useState({ name: '', targetValue: '', targetDate: '', notes: '', assetId: '', assetName: '' })
 
   const { data: goals = [], isLoading, refetch, isRefetching } = useQuery<Goal[]>({
     queryKey: ['goals'],
@@ -56,6 +65,11 @@ export default function GoalsScreen() {
   })
   const totalValue = stats?.totalWealth ?? 0
 
+  const { data: assets = [] } = useQuery<Asset[]>({
+    queryKey: ['assets'],
+    queryFn:  () => apiFetch('/api/assets'),
+  })
+
   const createMutation = useMutation({
     mutationFn: (data: Partial<Goal>) => apiFetch('/api/goals', {
       method:  'POST',
@@ -65,7 +79,7 @@ export default function GoalsScreen() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['goals'] })
       setShowForm(false)
-      setForm({ name: '', targetValue: '', targetDate: '', notes: '' })
+      setForm({ name: '', targetValue: '', targetDate: '', notes: '', assetId: '', assetName: '' })
     },
   })
 
@@ -163,14 +177,16 @@ export default function GoalsScreen() {
         )}
 
         {goals.map(goal => {
-          const progress  = Math.min((totalValue / goal.targetValue) * 100, 100)
-          const remaining = goal.targetValue - totalValue
-          const isReached = totalValue >= goal.targetValue
+          const linkedAsset  = goal.assetId ? assets.find(a => a.id === goal.assetId) : null
+          const currentValue = linkedAsset ? linkedAsset.value : totalValue
+          const progress     = Math.min((currentValue / goal.targetValue) * 100, 100)
+          const remaining    = goal.targetValue - currentValue
+          const isReached = currentValue >= goal.targetValue
           const daysLeft  = goal.targetDate
             ? Math.ceil((new Date(goal.targetDate).getTime() - Date.now()) / 86400000)
             : null
           const months = daysLeft ? Math.max(1, Math.round(daysLeft / 30)) : null
-          const pmt    = months ? pmtMonthly(totalValue, goal.targetValue, months) : null
+          const pmt    = months ? pmtMonthly(currentValue, goal.targetValue, months) : null
 
           return (
             <View key={goal.id} style={[s.card, isReached && { borderColor: colors.success + '40' }]}>
@@ -180,8 +196,14 @@ export default function GoalsScreen() {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={s.goalName}>{goal.name}</Text>
+                  {goal.assetName && (
+                    <View style={s.assetBadge}>
+                      <Ionicons name="layers-outline" size={10} color={colors.accent} />
+                      <Text style={s.assetBadgeText}>{goal.assetName}</Text>
+                    </View>
+                  )}
                   {daysLeft !== null && (
-                    <Text style={{ color: daysLeft < 0 ? colors.danger : colors.textMuted, fontSize: fontSize.xs }}>
+                    <Text style={{ color: daysLeft < 0 ? colors.danger : colors.textMuted, fontSize: fontSize.xs, marginTop: 2 }}>
                       {daysLeft < 0 ? 'Expiré' : `${daysLeft}j restants`}
                     </Text>
                   )}
@@ -194,7 +216,9 @@ export default function GoalsScreen() {
               {/* Barre de progression */}
               <View style={{ marginTop: 12 }}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
-                  <Text style={{ color: colors.textMuted, fontSize: fontSize.xs }}>{progress.toFixed(1)}% atteint</Text>
+                  <Text style={{ color: colors.textMuted, fontSize: fontSize.xs }}>
+                    {formatCurrency(currentValue)} · {progress.toFixed(1)}%
+                  </Text>
                   <Text style={{ color: colors.textMuted, fontSize: fontSize.xs }}>{formatCurrency(goal.targetValue, goal.currency)}</Text>
                 </View>
                 <View style={s.barBg}>
@@ -242,6 +266,40 @@ export default function GoalsScreen() {
               <View style={s.modalSheet}>
                 <View style={s.modalHandle} />
                 <Text style={s.modalTitle}>Nouvel objectif</Text>
+
+                {/* Sélecteur d'actif */}
+                <Text style={s.label}>Actif lié (optionnel)</Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={{ marginBottom: 4 }}
+                  contentContainerStyle={{ gap: 8, paddingVertical: 2 }}
+                >
+                  <TouchableOpacity
+                    style={[s.assetChip, !form.assetId && { backgroundColor: colors.accent + '18', borderColor: colors.accent }]}
+                    onPress={() => setForm(f => ({ ...f, assetId: '', assetName: '' }))}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={{ color: !form.assetId ? colors.accent : colors.textMuted, fontSize: fontSize.xs, fontWeight: '600' }}>
+                      Global
+                    </Text>
+                  </TouchableOpacity>
+                  {assets.map(asset => (
+                    <TouchableOpacity
+                      key={asset.id}
+                      style={[s.assetChip, form.assetId === asset.id && { backgroundColor: colors.accent + '18', borderColor: colors.accent }]}
+                      onPress={() => setForm(f => ({ ...f, assetId: asset.id, assetName: asset.name }))}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={{ color: form.assetId === asset.id ? colors.accent : colors.textMuted, fontSize: fontSize.xs, fontWeight: '600' }}>
+                        {asset.name}
+                      </Text>
+                      <Text style={{ color: form.assetId === asset.id ? colors.accent + 'AA' : colors.border, fontSize: 10 }}>
+                        {formatCurrency(asset.value)}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
 
                 <Text style={s.label}>Nom</Text>
                 <TextInput
@@ -298,6 +356,8 @@ export default function GoalsScreen() {
                       currency:    'EUR',
                       targetDate:  form.targetDate ? new Date(form.targetDate).toISOString() : null,
                       notes:       form.notes || null,
+                      assetId:     form.assetId || null,
+                      assetName:   form.assetName || null,
                     } as any)}
                     disabled={createMutation.isPending || !form.name || !form.targetValue}
                     activeOpacity={0.8}
@@ -385,4 +445,18 @@ const s = StyleSheet.create({
   },
   cancelBtn:  { flex: 1, paddingVertical: 14, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, alignItems: 'center' },
   confirmBtn: { flex: 1, paddingVertical: 14, borderRadius: radius.md, backgroundColor: colors.accent, alignItems: 'center' },
+
+  assetBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3,
+    backgroundColor: colors.accent + '12', borderRadius: radius.full,
+    paddingHorizontal: 6, paddingVertical: 2, alignSelf: 'flex-start',
+  },
+  assetBadgeText: { color: colors.accent, fontSize: 10, fontWeight: '600' },
+
+  assetChip: {
+    alignItems: 'center', gap: 2,
+    backgroundColor: colors.surface2, borderRadius: radius.md,
+    borderWidth: 1, borderColor: colors.border,
+    paddingHorizontal: 10, paddingVertical: 8,
+  },
 })

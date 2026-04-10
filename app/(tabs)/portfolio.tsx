@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { View, Text, ScrollView, StyleSheet, RefreshControl, Animated, ActivityIndicator, TouchableOpacity, Modal, Dimensions } from 'react-native'
+import { View, Text, ScrollView, StyleSheet, RefreshControl, Animated, ActivityIndicator, TouchableOpacity, Modal, useWindowDimensions } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { router } from 'expo-router'
 import { useQuery } from '@tanstack/react-query'
@@ -150,7 +150,7 @@ function HoldingDetailSheet({
     staleTime: 5 * 60 * 1000,
   })
 
-  const W   = Dimensions.get('window').width - spacing.md * 4
+  const W   = screenWidth - spacing.md * 4
   const H   = 160
   const entries = Object.entries(compareData ?? {})
 
@@ -288,6 +288,7 @@ function HoldingDetailSheet({
 }
 
 export default function PortfolioScreen() {
+  const { width: screenWidth } = useWindowDimensions()
   const [activeTab, setActiveTab]       = useState<'positions' | 'sectors' | 'dividends'>('positions')
   const [selectedHolding, setSelected]  = useState<{ holding: Holding; invested: number } | null>(null)
   const { data: assets, isLoading, refetch, isRefetching } = useQuery<Asset[]>({
