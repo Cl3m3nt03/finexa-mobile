@@ -93,9 +93,12 @@ export default function RegisterScreen() {
 
         {/* Logo */}
         <View style={s.logo}>
-          <View style={s.logoIcon}>
-            <Text style={s.logoSymbol}>F</Text>
+          <View style={s.logoIconOuter}>
+            <View style={s.logoIconInner}>
+              <Text style={s.logoSymbol}>F</Text>
+            </View>
           </View>
+          <Text style={s.logoName}>Finexa</Text>
           <Text style={s.title}>{step === 'otp' ? 'Vérification email' : 'Créer un compte'}</Text>
           <Text style={s.subtitle}>
             {step === 'otp'
@@ -214,13 +217,22 @@ const s = StyleSheet.create({
     flexGrow: 1, backgroundColor: colors.background,
     justifyContent: 'center', paddingHorizontal: spacing.xl, paddingVertical: spacing.xl,
   },
-  logo: { alignItems: 'center', marginBottom: spacing.xl },
-  logoIcon: {
-    width: 56, height: 56, borderRadius: radius.xl,
-    backgroundColor: colors.accent + '20', borderWidth: 1, borderColor: colors.accent + '40',
-    alignItems: 'center', justifyContent: 'center', marginBottom: spacing.md,
+  logo: { alignItems: 'center', marginBottom: spacing.xl, gap: 8 },
+  logoIconOuter: {
+    width: 80, height: 80, borderRadius: 24,
+    backgroundColor: colors.accent + '08',
+    borderWidth: 1, borderColor: colors.accent + '20',
+    alignItems: 'center', justifyContent: 'center',
+    padding: 6, marginBottom: 4,
   },
-  logoSymbol: { color: colors.accent, fontSize: 28, fontWeight: '700' },
+  logoIconInner: {
+    width: '100%' as any, height: '100%' as any, borderRadius: 18,
+    backgroundColor: colors.accent + '18',
+    borderWidth: 1, borderColor: colors.accent + '40',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  logoSymbol: { color: colors.accent, fontSize: 32, fontWeight: '800', letterSpacing: -1 },
+  logoName:   { color: colors.textPrimary, fontSize: fontSize['2xl'], fontWeight: '700', letterSpacing: -0.5 },
   title:      { color: colors.textPrimary, fontSize: fontSize['2xl'], fontWeight: '700' },
   subtitle:   { color: colors.textMuted,   fontSize: fontSize.sm, marginTop: 6, textAlign: 'center' },
 

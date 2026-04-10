@@ -51,7 +51,7 @@ const QUICK_ACTIONS: { label: string; icon: IoniconsName; route: any }[] = [
   { label: 'Portfolio',    icon: 'trending-up-outline',    route: '/(tabs)/portfolio'    },
   { label: 'Budget',       icon: 'pie-chart-outline',      route: '/(tabs)/budget'       },
   { label: 'Transactions', icon: 'swap-horizontal-outline', route: '/(tabs)/transactions' },
-  { label: 'Goals',        icon: 'target-outline',         route: '/(tabs)/goals'        },
+  { label: 'Goals',        icon: 'trophy-outline',         route: '/(tabs)/goals'        },
 ]
 
 export default function DashboardScreen() {
@@ -134,7 +134,7 @@ export default function DashboardScreen() {
             <Milestones totalWealth={total} />
             <WealthProjection
               currentWealth={total}
-              monthlyContrib={budgetData?.items?.filter(i => i.category === 'investment').reduce((s, i) => s + i.amount, 0) ?? 0}
+              monthlyContrib={budgetData?.items?.filter(i => (i.category as string) === 'investment').reduce((s, i) => s + i.amount, 0) ?? 0}
             />
             <PassiveIncome />
             {budgetData && budgetData.income ? (
@@ -285,8 +285,8 @@ const s = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   breakdownLabel: { flex: 1, color: colors.textSecondary, fontSize: fontSize.sm },
-  breakdownPct:   { color: colors.textMuted, fontSize: fontSize.xs, width: 38, textAlign: 'right' },
-  breakdownValue: { color: colors.textPrimary, fontSize: fontSize.sm, fontWeight: '600', width: 95, textAlign: 'right' },
+  breakdownPct:   { color: colors.textMuted, fontSize: fontSize.xs, minWidth: 36, textAlign: 'right' },
+  breakdownValue: { color: colors.textPrimary, fontSize: fontSize.sm, fontWeight: '600', minWidth: 80, textAlign: 'right' },
   barBg:   { height: 3, backgroundColor: colors.surface2, borderRadius: radius.full, overflow: 'hidden' },
   barFill: { height: 3, borderRadius: radius.full },
 

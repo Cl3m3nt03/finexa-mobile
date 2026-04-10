@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react'
-import { View, Text, StyleSheet, Dimensions } from 'react-native'
+import { View, Text, StyleSheet, useWindowDimensions } from 'react-native'
 import Svg, { Path, Defs, LinearGradient, Stop, Line, Text as SvgText } from 'react-native-svg'
 import { colors, fontSize, radius, spacing } from '@/constants/theme'
 import { formatCurrency } from '@/lib/api'
@@ -19,7 +19,8 @@ function compound(Vi: number, monthly: number, rate: number, years: number) {
 }
 
 export function WealthProjection({ currentWealth, monthlyContrib = 0, rate = 7, years = 20 }: Props) {
-  const W = Dimensions.get('window').width - spacing.md * 4
+  const { width } = useWindowDimensions()
+  const W = width - spacing.md * 4
   const H = 140
 
   const points = useMemo(() => {

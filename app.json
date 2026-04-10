@@ -15,12 +15,10 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.finexa.app",
-      "buildNumber": "3",
+      "buildNumber": "11",
       "infoPlist": {
         "NSFaceIDUsageDescription": "Utilisé pour sécuriser l'accès à votre application",
         "CFBundleLocalizations": [
-          "fr",
-          "en",
           "fr",
           "en"
         ],
@@ -35,8 +33,7 @@
       },
       "package": "com.finexa.app",
       "versionCode": 12,
-      "edgeToEdgeEnabled": true,
-      "newArchEnabled": false
+      "edgeToEdgeEnabled": true
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -46,7 +43,7 @@
       "expo-secure-store",
       "expo-dev-client"
     ],
-    "scheme": "financy",
+    "scheme": "finexa",
     "extra": {
       "router": {},
       "eas": {

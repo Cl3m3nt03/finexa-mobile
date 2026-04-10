@@ -47,8 +47,12 @@ export default function LoginScreen() {
     >
       {/* ── Logo ──────────────────────────────────────────────────────── */}
       <View style={s.logo}>
-        <View style={s.logoIcon}>
-          <Text style={s.logoLetter}>F</Text>
+        <View style={s.logoIconWrap}>
+          <View style={s.logoIconOuter}>
+            <View style={s.logoIconInner}>
+              <Text style={s.logoLetter}>F</Text>
+            </View>
+          </View>
         </View>
         <Text style={s.logoText}>Finexa</Text>
         <Text style={s.logoSub}>Gestion de patrimoine</Text>
@@ -132,15 +136,23 @@ const s = StyleSheet.create({
   },
 
   logo: { alignItems: 'center', marginBottom: spacing['2xl'] },
-  logoIcon: {
-    width: 64, height: 64, borderRadius: 18,
-    backgroundColor: colors.accent + '15',
-    borderWidth: 1, borderColor: colors.accent + '30',
-    alignItems: 'center', justifyContent: 'center', marginBottom: spacing.md,
+  logoIconWrap: { marginBottom: spacing.md + 4 },
+  logoIconOuter: {
+    width: 88, height: 88, borderRadius: 26,
+    backgroundColor: colors.accent + '08',
+    borderWidth: 1, borderColor: colors.accent + '20',
+    alignItems: 'center', justifyContent: 'center',
+    padding: 6,
   },
-  logoLetter: { color: colors.accent, fontSize: 28, fontWeight: '800' },
+  logoIconInner: {
+    width: '100%' as any, height: '100%' as any, borderRadius: 20,
+    backgroundColor: colors.accent + '18',
+    borderWidth: 1, borderColor: colors.accent + '40',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  logoLetter: { color: colors.accent, fontSize: 34, fontWeight: '800', letterSpacing: -1 },
   logoText:   { color: colors.textPrimary, fontSize: fontSize['3xl'], fontWeight: '700', letterSpacing: -0.5 },
-  logoSub:    { color: colors.textMuted, fontSize: fontSize.sm, marginTop: 4 },
+  logoSub:    { color: colors.textMuted, fontSize: fontSize.sm, marginTop: 6 },
 
   form: { gap: 16 },
 

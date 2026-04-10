@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react'
-import { View, Text, StyleSheet, Dimensions } from 'react-native'
+import { View, Text, StyleSheet, useWindowDimensions } from 'react-native'
 import Svg, { Path, Defs, LinearGradient, Stop, Circle } from 'react-native-svg'
 import { colors, fontSize, radius, spacing } from '@/constants/theme'
 import { formatCurrency } from '@/lib/api'
@@ -14,7 +14,8 @@ interface Props {
 }
 
 export function WealthChart({ data }: Props) {
-  const chartWidth = Dimensions.get('window').width - spacing.md * 2 - spacing.md * 2
+  const { width } = useWindowDimensions()
+  const chartWidth = width - spacing.md * 4
   const chartHeight = 180
 
   const { points, maxVal, minVal } = useMemo(() => {
