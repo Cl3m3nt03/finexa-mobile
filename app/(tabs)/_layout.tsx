@@ -48,7 +48,7 @@ export default function TabsLayout() {
         name="goals"
         options={{
           tabBarIcon: ({ focused }) => (
-            <Ionicons name={focused ? 'target' : 'target-outline'} size={22} color={focused ? colors.accent : colors.textMuted} />
+            <Ionicons name={focused ? 'trophy' : 'trophy-outline'} size={22} color={focused ? colors.accent : colors.textMuted} />
           ),
         }}
       />
