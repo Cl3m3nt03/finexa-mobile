@@ -4,11 +4,8 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Modal,
-  TextInput,
   ActivityIndicator,
   Alert,
-  Linking,
   RefreshControl,
   AppState,
 } from 'react-native'
@@ -16,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { create, open, LinkSuccess, LinkExit, LinkTokenConfiguration } from 'react-native-plaid-link-sdk'
 import { apiFetch } from '@/lib/api'
 import { colors, fontSize, radius, spacing } from '@/constants/theme'
 
@@ -42,12 +40,6 @@ interface BankConnection {
   accounts:        BankAccount[]
 }
 
-interface EBBank {
-  name:    string
-  country: string
-  bic?:    string
-}
-
 // ── Utilitaires ───────────────────────────────────────────────────────────────
 
 function fmt(amount: number, currency = 'EUR') {
@@ -65,13 +57,11 @@ function joursRestants(validUntil?: string | null): number | null {
 // ── Écran principal ───────────────────────────────────────────────────────────
 
 export default function BankingScreen() {
-  const queryClient                 = useQueryClient()
-  const [showModal, setShowModal]   = useState(false)
-  const [bankSearch, setBankSearch] = useState('')
+  const queryClient             = useQueryClient()
   const [connecting, setConnecting] = useState(false)
-  const appStateRef                 = useRef(AppState.currentState)
+  const appStateRef             = useRef(AppState.currentState)
 
-  // Recharge les connexions quand l'app revient au premier plan (après l'OAuth dans le navigateur)
+  // Recharge les connexions quand l'app revient au premier plan
   useEffect(() => {
     const sub = AppState.addEventListener('change', nextState => {
       if (appStateRef.current.match(/inactive|background/) && nextState === 'active') {
@@ -88,38 +78,50 @@ export default function BankingScreen() {
     queryFn:  () => apiFetch('/api/bank/sync'),
   })
 
-  // ── Recherche de banques ──
-  const { data: banks = [], isFetching: rechercheEnCours } = useQuery<EBBank[]>({
-    queryKey:  ['eb-banks', bankSearch],
-    queryFn:   () => apiFetch(`/api/bank/institutions?country=FR&q=${encodeURIComponent(bankSearch)}`),
-    enabled:   showModal,
-    staleTime: 60_000,
-  })
-
-  // ── Connexion à une banque ──
-  const connectMutation = useMutation({
-    mutationFn: (bankName: string) => {
-      if (!bankName?.trim()) throw new Error('Sélectionnez une banque')
-      return apiFetch<{ link: string; connectionId: string }>('/api/bank/connect', {
+  // ── Plaid Link ──
+  const ouvrirPlaid = useCallback(async () => {
+    setConnecting(true)
+    try {
+      // 1. Récupère un link_token depuis le backend
+      const { link_token } = await apiFetch<{ link_token: string }>('/api/bank/plaid/link-token', {
         method: 'POST',
-        body:   JSON.stringify({ bankName: bankName.trim(), country: 'FR', platform: 'mobile' }),
       })
-    },
-    onSuccess: async ({ link }) => {
-      setShowModal(false)
-      setConnecting(true)
-      try {
-        await Linking.openURL(link)
-      } catch {
-        Alert.alert('Erreur', 'Impossible d\'ouvrir le navigateur')
-      } finally {
-        setConnecting(false)
+
+      // 2. Configure et ouvre Plaid Link
+      const tokenConfig: LinkTokenConfiguration = {
+        token:       link_token,
+        noLoadingState: false,
       }
-    },
-    onError: (e: any) => {
-      Alert.alert('Erreur de connexion', e?.message ?? 'Impossible de se connecter à la banque')
-    },
-  })
+      create(tokenConfig)
+
+      open({
+        onSuccess: async (success: LinkSuccess) => {
+          try {
+            await apiFetch('/api/bank/plaid/exchange-token', {
+              method: 'POST',
+              body: JSON.stringify({
+                public_token:     success.publicToken,
+                institution_id:   success.metadata.institution?.id,
+                institution_name: success.metadata.institution?.name,
+              }),
+            })
+            queryClient.invalidateQueries({ queryKey: ['bank-connections'] })
+          } catch (e: any) {
+            Alert.alert('Erreur', e?.message ?? 'Impossible de finaliser la connexion')
+          }
+        },
+        onExit: (exit: LinkExit) => {
+          if (exit.error) {
+            Alert.alert('Connexion annulée', exit.error.displayMessage ?? 'Une erreur est survenue')
+          }
+        },
+      })
+    } catch (e: any) {
+      Alert.alert('Erreur Plaid', e?.message ?? 'Impossible de préparer la connexion bancaire')
+    } finally {
+      setConnecting(false)
+    }
+  }, [queryClient])
 
   // ── Synchronisation ──
   const syncMutation = useMutation({
@@ -151,7 +153,6 @@ export default function BankingScreen() {
   }, [deleteMutation])
 
   const connectees = connections.filter(c => c.status === 'LINKED')
-  const expirees   = connections.filter(c => c.status === 'EXPIRED')
 
   return (
     <SafeAreaView style={s.safe}>
@@ -167,8 +168,16 @@ export default function BankingScreen() {
             <Text style={s.title}>Comptes bancaires</Text>
             <Text style={s.subtitle}>Open Banking · PSD2</Text>
           </View>
-          <TouchableOpacity style={s.addBtn} onPress={() => setShowModal(true)} activeOpacity={0.8}>
-            <Ionicons name="add" size={22} color={colors.background} />
+          <TouchableOpacity
+            style={[s.addBtn, connecting && { opacity: 0.5 }]}
+            onPress={ouvrirPlaid}
+            activeOpacity={0.8}
+            disabled={connecting}
+          >
+            {connecting
+              ? <ActivityIndicator size="small" color={colors.background} />
+              : <Ionicons name="add" size={22} color={colors.background} />
+            }
           </TouchableOpacity>
         </View>
 
@@ -187,7 +196,7 @@ export default function BankingScreen() {
             <Text style={s.descVide}>
               Connectez votre banque pour voir vos soldes en temps réel via le standard PSD2 européen.
             </Text>
-            <TouchableOpacity style={s.btnConnecter} onPress={() => setShowModal(true)} activeOpacity={0.8}>
+            <TouchableOpacity style={s.btnConnecter} onPress={ouvrirPlaid} activeOpacity={0.8} disabled={connecting}>
               <Ionicons name="link-outline" size={18} color={colors.background} style={{ marginRight: 8 }} />
               <Text style={s.btnConnecterTexte}>Connecter ma banque</Text>
             </TouchableOpacity>
@@ -210,56 +219,16 @@ export default function BankingScreen() {
           />
         ))}
 
-        {/* Connexions expirées */}
-        {expirees.map(conn => (
-          <View key={conn.id} style={[s.carte, s.carteExpiree]}>
-            <View style={s.carteEntete}>
-              <View style={[s.iconeBox, { backgroundColor: colors.danger + '22' }]}>
-                <Ionicons name="alert-circle-outline" size={22} color={colors.danger} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={s.nomBanque}>{conn.institutionName ?? 'Banque'}</Text>
-                <Text style={[s.statut, { color: colors.danger }]}>Consentement expiré</Text>
-              </View>
-              <TouchableOpacity onPress={() => confirmerSuppression(conn)} hitSlop={8}>
-                <Ionicons name="trash-outline" size={20} color={colors.textMuted} />
-              </TouchableOpacity>
-            </View>
-            <Text style={s.msgExpire}>
-              Le consentement DSP2 (90 jours) a expiré. Reconnectez votre banque pour continuer.
-            </Text>
-            <TouchableOpacity
-              style={[s.btnConnecter, { marginTop: 12 }]}
-              onPress={() => connectMutation.mutate(conn.institutionName ?? '')}
-              activeOpacity={0.8}
-            >
-              <Text style={s.btnConnecterTexte}>Reconnecter</Text>
-            </TouchableOpacity>
-          </View>
-        ))}
-
         {/* Note DSP2 */}
         {connections.length > 0 && (
           <View style={s.infoBox}>
             <Ionicons name="information-circle-outline" size={16} color={colors.textMuted} style={{ marginRight: 6 }} />
             <Text style={s.infoTexte}>
-              Conformément à la DSP2, l'accès est limité à 90 jours et en lecture seule. Aucune opération n'est effectuée depuis l'application.
+              Conformément à la DSP2, l'accès est limité à 90 jours et en lecture seule.
             </Text>
           </View>
         )}
       </ScrollView>
-
-      {/* Modal de sélection de banque */}
-      <ModalBanque
-        visible={showModal}
-        onFermer={() => setShowModal(false)}
-        recherche={bankSearch}
-        onRechercheChange={setBankSearch}
-        banks={banks}
-        rechercheEnCours={rechercheEnCours}
-        onSelectionner={nom => connectMutation.mutate(nom)}
-        connexionEnCours={connectMutation.isPending || connecting}
-      />
     </SafeAreaView>
   )
 }
@@ -269,17 +238,16 @@ export default function BankingScreen() {
 function CarteConnexion({
   connexion, onSync, onSupprimer, syncEnCours,
 }: {
-  connexion:    BankConnection
-  onSync:       () => void
-  onSupprimer:  () => void
-  syncEnCours:  boolean
+  connexion:   BankConnection
+  onSync:      () => void
+  onSupprimer: () => void
+  syncEnCours: boolean
 }) {
-  const jours         = joursRestants(connexion.validUntil)
-  const soldeTotal    = connexion.accounts.reduce((s, a) => s + a.balance, 0)
+  const jours      = joursRestants(connexion.validUntil)
+  const soldeTotal = connexion.accounts.reduce((s, a) => s + a.balance, 0)
 
   return (
     <View style={s.carte}>
-      {/* En-tête carte */}
       <View style={s.carteEntete}>
         <View style={[s.iconeBox, { backgroundColor: colors.accent + '1A' }]}>
           <Ionicons name="business-outline" size={22} color={colors.accent} />
@@ -303,22 +271,16 @@ function CarteConnexion({
         </TouchableOpacity>
       </View>
 
-      {/* Solde total */}
       <View style={s.ligneTotal}>
         <Text style={s.labelTotal}>Solde total</Text>
         <Text style={s.valeurTotal}>{fmt(soldeTotal)}</Text>
       </View>
 
-      {/* Liste des comptes */}
       {connexion.accounts.map(compte => (
         <View key={compte.id} style={s.ligneCompte}>
           <View style={{ flex: 1 }}>
             <Text style={s.nomCompte}>{compte.name ?? 'Compte'}</Text>
-            {compte.iban && (
-              <Text style={s.ibanCompte}>
-                {compte.iban.replace(/(.{4})/g, '$1 ').trim()}
-              </Text>
-            )}
+            {compte.iban && <Text style={s.ibanCompte}>{compte.iban}</Text>}
           </View>
           <Text style={[s.soldeCompte, { color: compte.balance >= 0 ? colors.textPrimary : colors.danger }]}>
             {fmt(compte.balance, compte.currency)}
@@ -338,85 +300,6 @@ function CarteConnexion({
         </Text>
       )}
     </View>
-  )
-}
-
-// ── Modal de sélection de banque ──────────────────────────────────────────────
-
-function ModalBanque({
-  visible, onFermer, recherche, onRechercheChange,
-  banks, rechercheEnCours, onSelectionner, connexionEnCours,
-}: {
-  visible:           boolean
-  onFermer:          () => void
-  recherche:         string
-  onRechercheChange: (v: string) => void
-  banks:             EBBank[]
-  rechercheEnCours:  boolean
-  onSelectionner:    (nom: string) => void
-  connexionEnCours:  boolean
-}) {
-  return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onFermer}>
-      <View style={m.fond}>
-        <View style={m.feuille}>
-          <View style={m.poignee} />
-          <Text style={m.titre}>Choisir votre banque</Text>
-
-          <View style={m.ligneRecherche}>
-            <Ionicons name="search-outline" size={18} color={colors.textMuted} style={{ marginRight: 8 }} />
-            <TextInput
-              style={m.input}
-              placeholder="BNP, Crédit Agricole, Boursorama…"
-              placeholderTextColor={colors.textMuted}
-              value={recherche}
-              onChangeText={onRechercheChange}
-              autoFocus
-            />
-          </View>
-
-          {rechercheEnCours && (
-            <ActivityIndicator color={colors.accent} style={{ marginVertical: 16 }} />
-          )}
-
-          <ScrollView style={m.liste} keyboardShouldPersistTaps="handled">
-            {banks.map((bank, i) => (
-              <TouchableOpacity
-                key={i}
-                style={m.ligneBanque}
-                onPress={() => !connexionEnCours && onSelectionner(bank.name)}
-                activeOpacity={0.7}
-                disabled={connexionEnCours}
-              >
-                <View style={m.iconeBanque}>
-                  <Ionicons name="business-outline" size={20} color={colors.accent} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={m.nomBanque}>{bank.name}</Text>
-                  {bank.bic && <Text style={m.bicBanque}>{bank.bic}</Text>}
-                </View>
-                {connexionEnCours
-                  ? <ActivityIndicator size="small" color={colors.accent} />
-                  : <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
-                }
-              </TouchableOpacity>
-            ))}
-
-            {!rechercheEnCours && banks.length === 0 && recherche.length > 0 && (
-              <Text style={m.aucunResultat}>Aucune banque trouvée pour « {recherche} »</Text>
-            )}
-
-            {!rechercheEnCours && banks.length === 0 && recherche.length === 0 && (
-              <Text style={m.indice}>Commencez à saisir le nom de votre banque</Text>
-            )}
-          </ScrollView>
-
-          <TouchableOpacity style={m.btnFermer} onPress={onFermer}>
-            <Text style={m.btnFermerTexte}>Annuler</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </Modal>
   )
 }
 
@@ -458,7 +341,6 @@ const s = StyleSheet.create({
     paddingVertical: 60,
   },
 
-  // État vide
   carteVide: {
     backgroundColor: colors.surface,
     borderRadius:    radius.xl,
@@ -494,31 +376,21 @@ const s = StyleSheet.create({
     fontWeight: '600',
     color:      colors.background,
   },
-  badgesRow: {
-    flexDirection: 'row',
-    gap:           8,
-  },
+  badgesRow: { flexDirection: 'row', gap: 8 },
   badge: {
     backgroundColor:   colors.surface2,
     paddingHorizontal: 10,
     paddingVertical:   4,
     borderRadius:      radius.full,
   },
-  badgeTexte: {
-    fontSize: fontSize.xs,
-    color:    colors.textSecondary,
-  },
+  badgeTexte: { fontSize: fontSize.xs, color: colors.textSecondary },
 
-  // Carte connexion
   carte: {
     backgroundColor: colors.surface,
     borderRadius:    radius.xl,
     borderWidth:     1,
     borderColor:     colors.border,
     padding:         spacing.md,
-  },
-  carteExpiree: {
-    borderColor: colors.danger + '44',
   },
   carteEntete: {
     flexDirection: 'row',
@@ -538,17 +410,14 @@ const s = StyleSheet.create({
     fontWeight: '600',
     color:      colors.textPrimary,
   },
-  statut: {
-    fontSize:  fontSize.xs,
-    marginTop: 2,
-  },
+  statut:  { fontSize: fontSize.xs, marginTop: 2 },
   btnSync: {
-    width:          36,
-    height:         36,
-    borderRadius:   radius.md,
+    width:           36,
+    height:          36,
+    borderRadius:    radius.md,
     backgroundColor: colors.accent + '1A',
-    alignItems:     'center',
-    justifyContent: 'center',
+    alignItems:      'center',
+    justifyContent:  'center',
   },
 
   ligneTotal: {
@@ -560,56 +429,22 @@ const s = StyleSheet.create({
     padding:         spacing.sm,
     marginBottom:    spacing.sm,
   },
-  labelTotal: {
-    fontSize: fontSize.sm,
-    color:    colors.textMuted,
-  },
-  valeurTotal: {
-    fontSize:   fontSize.md,
-    fontWeight: '700',
-    color:      colors.textPrimary,
-  },
+  labelTotal:  { fontSize: fontSize.sm,  color: colors.textMuted },
+  valeurTotal: { fontSize: fontSize.md,  fontWeight: '700', color: colors.textPrimary },
 
   ligneCompte: {
-    flexDirection:      'row',
-    alignItems:         'center',
-    paddingVertical:    8,
-    borderBottomWidth:  1,
-    borderBottomColor:  colors.border,
+    flexDirection:     'row',
+    alignItems:        'center',
+    paddingVertical:   8,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
-  nomCompte: {
-    fontSize:   fontSize.sm,
-    fontWeight: '500',
-    color:      colors.textPrimary,
-  },
-  ibanCompte: {
-    fontSize:  fontSize.xs,
-    color:     colors.textMuted,
-    marginTop: 2,
-  },
-  soldeCompte: {
-    fontSize:   fontSize.md,
-    fontWeight: '600',
-  },
-  aucunCompte: {
-    fontSize:        fontSize.xs,
-    color:           colors.textMuted,
-    textAlign:       'center',
-    paddingVertical: 12,
-  },
-  dernierSync: {
-    fontSize:  fontSize.xs,
-    color:     colors.textMuted,
-    marginTop: 8,
-    textAlign: 'right',
-  },
-  msgExpire: {
-    fontSize:  fontSize.sm,
-    color:     colors.textMuted,
-    marginTop: 4,
-  },
+  nomCompte:   { fontSize: fontSize.sm, fontWeight: '500', color: colors.textPrimary },
+  ibanCompte:  { fontSize: fontSize.xs, color: colors.textMuted, marginTop: 2 },
+  soldeCompte: { fontSize: fontSize.md, fontWeight: '600' },
+  aucunCompte: { fontSize: fontSize.xs, color: colors.textMuted, textAlign: 'center', paddingVertical: 12 },
+  dernierSync: { fontSize: fontSize.xs, color: colors.textMuted, marginTop: 8, textAlign: 'right' },
 
-  // Encadré info DSP2
   infoBox: {
     flexDirection:   'row',
     alignItems:      'flex-start',
@@ -619,105 +454,5 @@ const s = StyleSheet.create({
     borderWidth:     1,
     borderColor:     colors.border,
   },
-  infoTexte: {
-    flex:       1,
-    fontSize:   fontSize.xs,
-    color:      colors.textMuted,
-    lineHeight: 18,
-  },
-})
-
-const m = StyleSheet.create({
-  fond: {
-    flex:            1,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    justifyContent:  'flex-end',
-  },
-  feuille: {
-    backgroundColor:      colors.surface,
-    borderTopLeftRadius:  radius.xl,
-    borderTopRightRadius: radius.xl,
-    padding:              spacing.lg,
-    maxHeight:            '85%',
-  },
-  poignee: {
-    width:           40,
-    height:          4,
-    backgroundColor: colors.border,
-    borderRadius:    2,
-    alignSelf:       'center',
-    marginBottom:    spacing.md,
-  },
-  titre: {
-    fontSize:     fontSize.lg,
-    fontWeight:   '700',
-    color:        colors.textPrimary,
-    marginBottom: spacing.md,
-  },
-  ligneRecherche: {
-    flexDirection:     'row',
-    alignItems:        'center',
-    backgroundColor:   colors.surface2,
-    borderRadius:      radius.md,
-    borderWidth:       1,
-    borderColor:       colors.border,
-    paddingHorizontal: spacing.sm,
-    marginBottom:      spacing.sm,
-  },
-  input: {
-    flex:            1,
-    paddingVertical: 10,
-    fontSize:        fontSize.md,
-    color:           colors.textPrimary,
-  },
-  liste: { maxHeight: 360 },
-  ligneBanque: {
-    flexDirection:     'row',
-    alignItems:        'center',
-    paddingVertical:   12,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    gap:               12,
-  },
-  iconeBanque: {
-    width:          40,
-    height:         40,
-    borderRadius:   radius.md,
-    backgroundColor: colors.accent + '1A',
-    alignItems:     'center',
-    justifyContent: 'center',
-  },
-  nomBanque: {
-    fontSize:   fontSize.md,
-    fontWeight: '500',
-    color:      colors.textPrimary,
-  },
-  bicBanque: {
-    fontSize: fontSize.xs,
-    color:    colors.textMuted,
-  },
-  aucunResultat: {
-    fontSize:        fontSize.sm,
-    color:           colors.textMuted,
-    textAlign:       'center',
-    paddingVertical: 24,
-  },
-  indice: {
-    fontSize:        fontSize.sm,
-    color:           colors.textMuted,
-    textAlign:       'center',
-    paddingVertical: 32,
-  },
-  btnFermer: {
-    backgroundColor: colors.surface2,
-    borderRadius:    radius.full,
-    padding:         spacing.md,
-    alignItems:      'center',
-    marginTop:       spacing.md,
-  },
-  btnFermerTexte: {
-    fontSize:   fontSize.md,
-    fontWeight: '600',
-    color:      colors.textSecondary,
-  },
+  infoTexte: { flex: 1, fontSize: fontSize.xs, color: colors.textMuted, lineHeight: 18 },
 })

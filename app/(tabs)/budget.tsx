@@ -32,7 +32,28 @@ const CAT_CFG: Record<string, { label: string; color: string; icon: IoniconsName
 
 const EMPTY_FORM = { label: '', amount: '', category: 'needs' as BudgetItem['category'], dayOfMonth: '' }
 
-type Tab = 'repartition' | 'cashflow'
+type Tab = 'repartition' | 'cashflow' | 'depenses'
+
+const EXPENSE_CATS = [
+  { id: 'alimentation',   label: 'Alimentation', emoji: '🛒', budgetCat: 'needs'      },
+  { id: 'logement',       label: 'Logement',     emoji: '🏠', budgetCat: 'needs'      },
+  { id: 'transport',      label: 'Transport',    emoji: '🚗', budgetCat: 'needs'      },
+  { id: 'sante',          label: 'Santé',        emoji: '💊', budgetCat: 'needs'      },
+  { id: 'abonnements',    label: 'Abonnements',  emoji: '📱', budgetCat: 'needs'      },
+  { id: 'restaurants',    label: 'Restaurants',  emoji: '🍽️', budgetCat: 'wants'      },
+  { id: 'loisirs',        label: 'Loisirs',      emoji: '🎮', budgetCat: 'wants'      },
+  { id: 'shopping',       label: 'Shopping',     emoji: '👕', budgetCat: 'wants'      },
+  { id: 'vacances',       label: 'Vacances',     emoji: '✈️', budgetCat: 'wants'      },
+  { id: 'epargne',        label: 'Épargne',      emoji: '💰', budgetCat: 'savings'    },
+  { id: 'investissement', label: 'Investissement',emoji:'📈', budgetCat: 'investment' },
+  { id: 'autre',          label: 'Autre',        emoji: '📌', budgetCat: 'needs'      },
+] as const
+
+type ExpenseCatId = typeof EXPENSE_CATS[number]['id']
+
+interface Expense {
+  id: string; amount: number; label: string; category: string; budgetCat: string; date: string
+}
 
 export default function BudgetScreen() {
   const qc = useQueryClient()
@@ -105,6 +126,39 @@ export default function BudgetScreen() {
     else createMut.mutate(body)
   }
 
+  // ── Dépenses ──────────────────────────────────────────────────────────
+  const currentMonth = new Date().toISOString().slice(0, 7)
+  const [expAmount, setExpAmount] = useState('')
+  const [expLabel,  setExpLabel]  = useState('')
+  const [expCat,    setExpCat]    = useState<ExpenseCatId>('alimentation')
+
+  const { data: expenses = [] } = useQuery<Expense[]>({
+    queryKey: ['expenses', currentMonth],
+    queryFn:  () => apiFetch(`/api/expenses?month=${currentMonth}`),
+    enabled:  tab === 'depenses',
+  })
+
+  const addExpenseMut = useMutation({
+    mutationFn: (body: object) => apiFetch('/api/expenses', { method: 'POST', body: JSON.stringify(body) }),
+    onSuccess:  () => {
+      qc.invalidateQueries({ queryKey: ['expenses', currentMonth] })
+      setExpAmount(''); setExpLabel('')
+    },
+    onError: (e: any) => Alert.alert('Erreur', e?.message),
+  })
+
+  const deleteExpenseMut = useMutation({
+    mutationFn: (id: string) => apiFetch(`/api/expenses?id=${id}`, { method: 'DELETE' }),
+    onSuccess:  () => qc.invalidateQueries({ queryKey: ['expenses', currentMonth] }),
+  })
+
+  const handleAddExpense = () => {
+    const amount = parseFloat(expAmount.replace(',', '.'))
+    if (!expLabel.trim())         { Alert.alert('Champ manquant', 'Entrez un libellé'); return }
+    if (isNaN(amount) || amount <= 0) { Alert.alert('Montant invalide', 'Entrez un montant valide'); return }
+    addExpenseMut.mutate({ amount, label: expLabel.trim(), category: expCat })
+  }
+
   const handleDelete = (item: BudgetItem) => {
     Alert.alert('Supprimer', `Supprimer "${item.label}" ?`, [
       { text: 'Annuler', style: 'cancel' },
@@ -147,7 +201,10 @@ export default function BudgetScreen() {
             <Text style={[s.tabText, tab === 'repartition' && s.tabTextActive]}>Répartition</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[s.tabBtn, tab === 'cashflow' && s.tabActive]} onPress={() => setTab('cashflow')}>
-            <Text style={[s.tabText, tab === 'cashflow' && s.tabTextActive]}>Flux mensuel</Text>
+            <Text style={[s.tabText, tab === 'cashflow' && s.tabTextActive]}>Flux</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[s.tabBtn, tab === 'depenses' && s.tabActive]} onPress={() => setTab('depenses')}>
+            <Text style={[s.tabText, tab === 'depenses' && s.tabTextActive]}>Dépenses</Text>
           </TouchableOpacity>
         </View>
 
@@ -395,6 +452,142 @@ export default function BudgetScreen() {
         )}
       </ScrollView>
 
+      {/* ══════════════════════════════════════════════════════════════
+          VUE DÉPENSES RÉELLES
+      ══════════════════════════════════════════════════════════════ */}
+      {tab === 'depenses' && (
+        <>
+          {/* Quick-add */}
+          <View style={s.card}>
+            <Text style={s.sheetTitle}>Ajouter une dépense</Text>
+
+            {/* Montant */}
+            <View style={s.expRow}>
+              <TextInput
+                style={s.expAmountInput}
+                value={expAmount}
+                onChangeText={setExpAmount}
+                keyboardType="decimal-pad"
+                placeholder="0"
+                placeholderTextColor={colors.textMuted}
+                returnKeyType="next"
+              />
+              <Text style={s.expEuro}>€</Text>
+              <TextInput
+                style={[s.input, { flex: 1, marginBottom: 0 }]}
+                value={expLabel}
+                onChangeText={setExpLabel}
+                placeholder="Libellé (ex: Carrefour…)"
+                placeholderTextColor={colors.textMuted}
+                returnKeyType="done"
+                onSubmitEditing={handleAddExpense}
+              />
+            </View>
+
+            {/* Grille catégories */}
+            <View style={s.expCatGrid}>
+              {EXPENSE_CATS.map(cat => (
+                <TouchableOpacity
+                  key={cat.id}
+                  style={[s.expCatBtn, expCat === cat.id && { borderColor: colors.accent, backgroundColor: colors.accent + '18' }]}
+                  onPress={() => setExpCat(cat.id)}
+                >
+                  <Text style={{ fontSize: 20 }}>{cat.emoji}</Text>
+                  <Text style={[s.expCatLabel, expCat === cat.id && { color: colors.accent }]}>{cat.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <TouchableOpacity
+              style={[s.saveBtn, { backgroundColor: colors.accent, marginTop: 4 }]}
+              onPress={handleAddExpense}
+              disabled={addExpenseMut.isPending}
+            >
+              {addExpenseMut.isPending
+                ? <ActivityIndicator color={colors.background} />
+                : <Text style={s.saveBtnText}>Ajouter</Text>
+              }
+            </TouchableOpacity>
+          </View>
+
+          {/* Réel vs prévu */}
+          {data && (
+            <View style={s.card}>
+              <Text style={[s.sheetTitle, { marginBottom: 12 }]}>Ce mois — réel vs prévu</Text>
+              {(['needs', 'wants', 'savings', 'investment'] as const).map(cat => {
+                const cfg     = CAT_CFG[cat]
+                const planned = totals[cat] ?? 0
+                const spent   = expenses.filter(e => e.budgetCat === cat).reduce((s, e) => s + e.amount, 0)
+                const pct     = planned > 0 ? Math.min((spent / planned) * 100, 100) : 0
+                const over    = spent > planned && planned > 0
+                return (
+                  <View key={cat} style={{ marginBottom: 14 }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 5 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <Ionicons name={cfg.icon} size={13} color={cfg.color} />
+                        <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm, fontWeight: '500' }}>{cfg.label}</Text>
+                      </View>
+                      <Text style={{ fontSize: fontSize.xs, fontFamily: 'monospace' }}>
+                        <Text style={{ color: over ? colors.danger : colors.textPrimary, fontWeight: '600' }}>
+                          {formatCurrency(spent)}
+                        </Text>
+                        <Text style={{ color: colors.textMuted }}> / {formatCurrency(planned)}</Text>
+                      </Text>
+                    </View>
+                    <View style={s.barBg}>
+                      <View style={[s.barFill, {
+                        width: `${pct}%` as any,
+                        backgroundColor: over ? colors.danger : cfg.color,
+                      }]} />
+                    </View>
+                  </View>
+                )
+              })}
+            </View>
+          )}
+
+          {/* Liste dépenses */}
+          {expenses.length > 0 && (
+            <View style={s.card}>
+              <Text style={[s.sheetTitle, { marginBottom: 8 }]}>
+                Historique ({expenses.length})
+              </Text>
+              {expenses.map((exp, idx) => {
+                const cat = EXPENSE_CATS.find(c => c.id === exp.category)
+                return (
+                  <View key={exp.id}>
+                    {idx > 0 && <View style={{ height: 1, backgroundColor: colors.border, marginVertical: 4 }} />}
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6 }}>
+                      <Text style={{ fontSize: 20, width: 28, textAlign: 'center' }}>{cat?.emoji ?? '📌'}</Text>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ color: colors.textPrimary, fontSize: fontSize.sm, fontWeight: '500' }}>{exp.label}</Text>
+                        <Text style={{ color: colors.textMuted, fontSize: fontSize.xs }}>
+                          {cat?.label} · {new Date(exp.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}
+                        </Text>
+                      </View>
+                      <Text style={{ color: colors.danger, fontSize: fontSize.sm, fontWeight: '600' }}>
+                        -{formatCurrency(exp.amount)}
+                      </Text>
+                      <TouchableOpacity onPress={() => deleteExpenseMut.mutate(exp.id)} hitSlop={8}>
+                        <Ionicons name="trash-outline" size={15} color={colors.textMuted} />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )
+              })}
+            </View>
+          )}
+
+          {expenses.length === 0 && (
+            <View style={[s.card, { alignItems: 'center', paddingVertical: 32 }]}>
+              <Text style={{ fontSize: 40, marginBottom: 10 }}>🧾</Text>
+              <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm, fontWeight: '600' }}>Aucune dépense ce mois</Text>
+              <Text style={{ color: colors.textMuted, fontSize: fontSize.xs, marginTop: 4 }}>Ajoutez votre première dépense ci-dessus.</Text>
+            </View>
+          )}
+        </>
+      )}
+
       {/* ── Modal ajout / édition ────────────────────────────────────── */}
       <Modal visible={modal} animationType="slide" transparent onRequestClose={closeModal}>
         <View style={{ flex: 1 }}>
@@ -554,4 +747,12 @@ const s = StyleSheet.create({
 
   saveBtn:     { borderRadius: radius.lg, paddingVertical: 14, alignItems: 'center', marginTop: 8 },
   saveBtnText: { color: colors.background, fontWeight: '700', fontSize: fontSize.md },
+
+  // Dépenses
+  expRow:        { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
+  expAmountInput:{ width: 80, backgroundColor: colors.surface2, borderRadius: radius.md, paddingHorizontal: 10, paddingVertical: 12, color: colors.textPrimary, fontSize: fontSize.xl, fontWeight: '700', textAlign: 'center', borderWidth: 1, borderColor: colors.border },
+  expEuro:       { color: colors.textMuted, fontSize: fontSize.md, fontWeight: '600' },
+  expCatGrid:    { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
+  expCatBtn:     { width: '22%' as any, alignItems: 'center', gap: 3, paddingVertical: 8, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface2 },
+  expCatLabel:   { color: colors.textMuted, fontSize: 9, textAlign: 'center' },
 })

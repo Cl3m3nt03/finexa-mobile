@@ -41,7 +41,8 @@
     "plugins": [
       "expo-router",
       "expo-secure-store",
-      "expo-dev-client"
+      "expo-dev-client",
+      "react-native-plaid-link-sdk"
     ],
     "scheme": "finexa",
     "extra": {
