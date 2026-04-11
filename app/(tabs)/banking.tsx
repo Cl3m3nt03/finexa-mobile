@@ -98,11 +98,13 @@ export default function BankingScreen() {
 
   // ── Connexion à une banque ──
   const connectMutation = useMutation({
-    mutationFn: (bankName: string) =>
-      apiFetch<{ link: string; connectionId: string }>('/api/bank/connect', {
+    mutationFn: (bankName: string) => {
+      if (!bankName?.trim()) throw new Error('Sélectionnez une banque')
+      return apiFetch<{ link: string; connectionId: string }>('/api/bank/connect', {
         method: 'POST',
-        body:   JSON.stringify({ bankName, country: 'FR', platform: 'mobile' }),
-      }),
+        body:   JSON.stringify({ bankName: bankName.trim(), country: 'FR', platform: 'mobile' }),
+      })
+    },
     onSuccess: async ({ link }) => {
       setShowModal(false)
       setConnecting(true)
