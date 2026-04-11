@@ -9,6 +9,7 @@ type IoniconsName = React.ComponentProps<typeof Ionicons>['name']
 
 const MENU_ITEMS: { label: string; icon: IoniconsName; route: string; color: string; description: string }[] = [
   { label: 'Mes actifs',    icon: 'wallet-outline',         route: '/(tabs)/assets',       color: colors.accent,  description: 'Gérer vos comptes, épargne, immobilier' },
+  { label: 'Banque',        icon: 'business-outline',       route: '/(tabs)/banking',      color: '#10B981',      description: 'Comptes bancaires connectés (PSD2)' },
   { label: 'Budget',        icon: 'pie-chart-outline',      route: '/(tabs)/budget',       color: '#3B82F6',      description: 'Gérez vos dépenses et revenus 50/30/20' },
   { label: 'Objectifs',     icon: 'flag-outline',           route: '/(tabs)/goals',        color: '#10B981',      description: 'Atteignez vos buts financiers' },
   { label: 'Transactions',  icon: 'swap-horizontal-outline', route: '/(tabs)/transactions', color: '#F97316',     description: 'Historique de vos opérations' },
