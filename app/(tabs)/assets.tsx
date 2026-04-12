@@ -10,6 +10,8 @@ import { Ionicons } from '@expo/vector-icons'
 import { router } from 'expo-router'
 import { colors, fontSize, radius, spacing } from '@/constants/theme'
 import { apiFetch, formatCurrency } from '@/lib/api'
+import { HoldingsImportModal } from '@/components/HoldingsImportModal'
+import { SnapshotHistoryModal } from '@/components/SnapshotHistoryModal'
 
 interface Asset {
   id:          string
@@ -39,9 +41,11 @@ const EMPTY_FORM = { name: '', type: 'BANK_ACCOUNT', value: '', institution: '',
 
 export default function AssetsScreen() {
   const queryClient = useQueryClient()
-  const [showForm, setShowForm]       = useState(false)
-  const [editAsset, setEditAsset]     = useState<Asset | null>(null)
-  const [form, setForm]               = useState(EMPTY_FORM)
+  const [showForm,    setShowForm]    = useState(false)
+  const [editAsset,   setEditAsset]   = useState<Asset | null>(null)
+  const [form,        setForm]        = useState(EMPTY_FORM)
+  const [importAsset, setImportAsset] = useState<Asset | null>(null)
+  const [histAsset,   setHistAsset]   = useState<Asset | null>(null)
 
   const { data: assets = [], isLoading, refetch, isRefetching } = useQuery<Asset[]>({
     queryKey: ['assets'],
@@ -179,7 +183,17 @@ export default function AssetsScreen() {
                       )}
                     </View>
                     <Text style={s.assetValue}>{formatCurrency(asset.value, asset.currency)}</Text>
-                    <TouchableOpacity onPress={() => openEdit(asset)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ marginLeft: 10 }}>
+                    {['PEA', 'CTO', 'STOCK'].includes(asset.type) && (
+                      <>
+                        <TouchableOpacity onPress={() => setImportAsset(asset)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ marginLeft: 8 }}>
+                          <Ionicons name="cloud-upload-outline" size={15} color={colors.accent} />
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => setHistAsset(asset)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ marginLeft: 8 }}>
+                          <Ionicons name="time-outline" size={15} color={colors.accent} />
+                        </TouchableOpacity>
+                      </>
+                    )}
+                    <TouchableOpacity onPress={() => openEdit(asset)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ marginLeft: 8 }}>
                       <Ionicons name="create-outline" size={16} color={colors.textMuted} />
                     </TouchableOpacity>
                     <TouchableOpacity onPress={() => confirmDelete(asset)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ marginLeft: 8 }}>
@@ -208,6 +222,26 @@ export default function AssetsScreen() {
           </View>
         )}
       </ScrollView>
+
+      {/* ── Modal Import CSV/PDF ─────────────────────────────────────────── */}
+      <HoldingsImportModal
+        visible={!!importAsset}
+        assetId={importAsset?.id ?? ''}
+        assetName={importAsset?.name ?? ''}
+        onClose={() => setImportAsset(null)}
+        onViewHistory={() => {
+          if (importAsset) setHistAsset(importAsset)
+          setImportAsset(null)
+        }}
+      />
+
+      {/* ── Modal Historique DCA ──────────────────────────────────────────── */}
+      <SnapshotHistoryModal
+        visible={!!histAsset}
+        assetId={histAsset?.id ?? ''}
+        assetName={histAsset?.name ?? ''}
+        onClose={() => setHistAsset(null)}
+      />
 
       {/* ── Modal formulaire ─────────────────────────────────────────────── */}
       <Modal visible={showForm} transparent animationType="slide">
