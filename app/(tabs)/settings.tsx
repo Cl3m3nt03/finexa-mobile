@@ -1,14 +1,17 @@
 import { useState } from 'react'
 import {
   View, Text, ScrollView, StyleSheet, TouchableOpacity,
-  TextInput, ActivityIndicator, Alert,
+  TextInput, ActivityIndicator, Alert, Share, Modal,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Ionicons } from '@expo/vector-icons'
 import { router } from 'expo-router'
+import * as FileSystem from 'expo-file-system'
 import { colors, fontSize, radius, spacing } from '@/constants/theme'
 import { apiFetch } from '@/lib/api'
+import { useAuthStore } from '@/lib/store'
+import { API_BASE } from '@/constants/api'
 
 interface Alert_ {
   id:        string
@@ -274,6 +277,157 @@ function TwoFASection() {
   )
 }
 
+// ── Section: RGPD ────────────────────────────────────────────────────────────
+
+function RgpdSection() {
+  const { token, logout } = useAuthStore()
+  const [exportLoading, setExportLoading] = useState(false)
+  const [deleteModal,   setDeleteModal]   = useState(false)
+  const [password,      setPassword]      = useState('')
+  const [deleteLoading, setDeleteLoading] = useState(false)
+  const [deleteError,   setDeleteError]   = useState('')
+
+  async function handleExport() {
+    if (!token) return
+    setExportLoading(true)
+    try {
+      const res = await fetch(`${API_BASE}/api/users/export`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!res.ok) { Alert.alert('Erreur', 'Impossible d\'exporter vos données.'); return }
+      const json = await res.text()
+      const path = `${FileSystem.documentDirectory}finexa-export-${new Date().toISOString().slice(0, 10)}.json`
+      await FileSystem.writeAsStringAsync(path, json, { encoding: FileSystem.EncodingType.UTF8 })
+      await Share.share({ url: path, title: 'Export Finexa', message: 'Voici vos données Finexa.' })
+    } catch {
+      Alert.alert('Erreur', 'Impossible d\'exporter vos données.')
+    } finally {
+      setExportLoading(false)
+    }
+  }
+
+  async function handleDelete() {
+    if (!password || !token) return
+    setDeleteLoading(true)
+    setDeleteError('')
+    try {
+      const res = await fetch(`${API_BASE}/api/users/delete-account`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body:    JSON.stringify({ password }),
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        setDeleteError(data.error ?? 'Erreur lors de la suppression.')
+        return
+      }
+      setDeleteModal(false)
+      await logout()
+      router.replace('/login')
+    } catch {
+      setDeleteError('Impossible de joindre le serveur.')
+    } finally {
+      setDeleteLoading(false)
+    }
+  }
+
+  return (
+    <View style={s.card}>
+      <View style={s.cardTitleRow}>
+        <View style={[s.sectionIcon, { backgroundColor: colors.accent + '15' }]}>
+          <Ionicons name="shield-outline" size={16} color={colors.accent} />
+        </View>
+        <Text style={s.cardTitle}>Données personnelles</Text>
+      </View>
+
+      <Text style={{ color: colors.textMuted, fontSize: fontSize.xs, marginTop: 10, lineHeight: 18 }}>
+        Conformément au RGPD, vous pouvez exporter ou supprimer l'intégralité de vos données.
+      </Text>
+
+      <View style={{ gap: 10, marginTop: 14 }}>
+        <TouchableOpacity
+          style={[s.secondaryBtn, { borderColor: colors.accent + '50' }]}
+          onPress={handleExport}
+          disabled={exportLoading}
+          activeOpacity={0.7}
+        >
+          {exportLoading
+            ? <ActivityIndicator color={colors.accent} size="small" />
+            : <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Ionicons name="download-outline" size={16} color={colors.accent} />
+                <Text style={{ color: colors.accent, fontSize: fontSize.sm, fontWeight: '600' }}>Exporter mes données</Text>
+              </View>
+          }
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[s.secondaryBtn, { borderColor: colors.danger + '50' }]}
+          onPress={() => { setDeleteModal(true); setPassword(''); setDeleteError('') }}
+          activeOpacity={0.7}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Ionicons name="trash-outline" size={16} color={colors.danger} />
+            <Text style={{ color: colors.danger, fontSize: fontSize.sm, fontWeight: '600' }}>Supprimer mon compte</Text>
+          </View>
+        </TouchableOpacity>
+      </View>
+
+      {/* Modal suppression */}
+      <Modal visible={deleteModal} transparent animationType="fade" onRequestClose={() => setDeleteModal(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: spacing.md }}>
+          <View style={[s.card, { gap: 14 }]}>
+            <Text style={{ color: colors.textPrimary, fontSize: fontSize.lg, fontWeight: '700' }}>Supprimer mon compte</Text>
+            <Text style={{ color: colors.textSecondary, fontSize: fontSize.sm, lineHeight: 20 }}>
+              Cette action est irréversible. Toutes vos données seront définitivement supprimées.
+            </Text>
+
+            <View>
+              <Text style={s.label}>Confirmez votre mot de passe</Text>
+              <TextInput
+                style={s.input}
+                value={password}
+                onChangeText={setPassword}
+                placeholder="Votre mot de passe actuel"
+                placeholderTextColor={colors.textMuted}
+                secureTextEntry
+                autoFocus
+              />
+            </View>
+
+            {deleteError !== '' && (
+              <View style={s.errorBox}>
+                <Ionicons name="alert-circle-outline" size={14} color={colors.danger} />
+                <Text style={{ color: colors.danger, fontSize: fontSize.xs, flex: 1 }}>{deleteError}</Text>
+              </View>
+            )}
+
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <TouchableOpacity
+                style={s.cancelBtn}
+                onPress={() => setDeleteModal(false)}
+                activeOpacity={0.7}
+              >
+                <Text style={{ color: colors.textSecondary, fontWeight: '600', fontSize: fontSize.sm }}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[s.primaryBtn, { flex: 1, backgroundColor: colors.danger }, (!password || deleteLoading) && { opacity: 0.5 }]}
+                onPress={handleDelete}
+                disabled={!password || deleteLoading}
+                activeOpacity={0.8}
+              >
+                {deleteLoading
+                  ? <ActivityIndicator color={colors.background} size="small" />
+                  : <Text style={s.primaryBtnText}>Supprimer</Text>
+                }
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </View>
+  )
+}
+
 // ── Section: Alertes de prix ──────────────────────────────────────────────────
 
 function AlertsSection() {
@@ -370,6 +524,7 @@ export default function SettingsScreen() {
         <PasswordSection />
         <TwoFASection />
         <AlertsSection />
+        <RgpdSection />
 
         {/* ── Version info ─────────────────────────────────────────────── */}
         <View style={{ alignItems: 'center', paddingBottom: 8 }}>

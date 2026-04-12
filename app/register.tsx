@@ -22,6 +22,7 @@ export default function RegisterScreen() {
   const [showPwd,  setShowPwd]  = useState(false)
   const [loading,  setLoading]  = useState(false)
   const [error,    setError]    = useState('')
+  const [consent,  setConsent]  = useState(false)
 
   const rules = [
     { label: 'Au moins 8 caractères', ok: password.length >= 8 },
@@ -29,7 +30,7 @@ export default function RegisterScreen() {
     { label: 'Un chiffre',             ok: /[0-9]/.test(password) },
     { label: 'Mots de passe identiques', ok: password === confirm && confirm.length > 0 },
   ]
-  const formOk = name.trim().length > 0 && /\S+@\S+/.test(email) && rules.every(r => r.ok)
+  const formOk = name.trim().length > 0 && /\S+@\S+/.test(email) && rules.every(r => r.ok) && consent
 
   async function handleRegister() {
     if (!formOk) return
@@ -39,7 +40,7 @@ export default function RegisterScreen() {
       const res  = await fetch(`${API_BASE}/api/auth/register`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ name: name.trim(), email: email.trim().toLowerCase(), password }),
+        body:    JSON.stringify({ name: name.trim(), email: email.trim().toLowerCase(), password, consent: true }),
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error ?? 'Erreur.'); return }
@@ -156,6 +157,22 @@ export default function RegisterScreen() {
                 </View>
               )}
 
+              {/* RGPD — Consentement obligatoire */}
+              <TouchableOpacity
+                style={s.consentRow}
+                onPress={() => setConsent(v => !v)}
+                activeOpacity={0.7}
+              >
+                <View style={[s.checkbox, consent && s.checkboxActive]}>
+                  {consent && <Text style={s.checkmark}>✓</Text>}
+                </View>
+                <Text style={s.consentTxt}>
+                  J'accepte la{' '}
+                  <Text style={{ color: colors.accent }}>Politique de confidentialité</Text>
+                  {' '}et le traitement de mes données conformément au RGPD.
+                </Text>
+              </TouchableOpacity>
+
               {error ? <Text style={s.error}>{error}</Text> : null}
 
               <TouchableOpacity
@@ -257,4 +274,9 @@ const s = StyleSheet.create({
   divider:  { height: 1, backgroundColor: colors.border, marginVertical: 4 },
   backBtn:  { alignItems: 'center', paddingVertical: 4 },
   backText: { color: colors.textMuted, fontSize: fontSize.sm },
+  consentRow:   { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  checkbox:     { width: 18, height: 18, borderRadius: 4, borderWidth: 2, borderColor: colors.border, alignItems: 'center', justifyContent: 'center', marginTop: 1, flexShrink: 0 },
+  checkboxActive: { backgroundColor: colors.accent, borderColor: colors.accent },
+  checkmark:    { color: colors.background, fontSize: 11, fontWeight: '800' },
+  consentTxt:   { flex: 1, color: colors.textMuted, fontSize: fontSize.xs, lineHeight: 18 },
 })
