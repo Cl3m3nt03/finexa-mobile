@@ -14,23 +14,24 @@ import { API_BASE } from '@/constants/api'
 import { getToken } from '@/lib/auth'
 
 interface PokemonItem {
-  id:              string
-  itemType:        'card' | 'sealed'
-  name:            string
-  setName:         string | null
-  language:        string
-  imageUrl:        string | null
-  rarity:          string | null
-  condition:       string | null
-  isReverse:       boolean
-  isGraded:        boolean
-  gradeLabel:      string | null
-  quantity:        number
-  purchasePrice:   number
-  currentPrice:    number | null
-  lastPriceAt:     string | null
-  currency:        string
-  notes:           string | null
+  id:               string
+  itemType:         'card' | 'sealed'
+  name:             string
+  setName:          string | null
+  language:         string
+  imageUrl:         string | null
+  rarity:           string | null
+  condition:        string | null
+  isReverse:        boolean
+  isGraded:         boolean
+  gradeLabel:       string | null
+  quantity:         number
+  purchasePrice:    number
+  currentPrice:     number | null
+  lastPriceAt:      string | null
+  currency:         string
+  notes:            string | null
+  ebaySearchQuery:  string | null
 }
 
 interface SearchResult {
@@ -67,6 +68,10 @@ export default function PokemonScreen() {
     notes:         '',
   })
 
+  // Edit modal
+  const [editItem, setEditItem] = useState<PokemonItem | null>(null)
+  const [editQuery, setEditQuery] = useState('')
+
   const { data: items = [], isLoading, refetch, isRefetching } = useQuery<PokemonItem[]>({
     queryKey: ['pokemon-items'],
     queryFn:  () => apiFetch('/api/pokemon/items'),
@@ -83,6 +88,15 @@ export default function PokemonScreen() {
   const deleteMutation = useMutation({
     mutationFn: (id: string) => apiFetch(`/api/pokemon/items/${id}`, { method: 'DELETE' }),
     onSuccess:  () => queryClient.invalidateQueries({ queryKey: ['pokemon-items'] }),
+  })
+
+  const editMutation = useMutation({
+    mutationFn: ({ id, ebaySearchQuery }: { id: string; ebaySearchQuery: string }) =>
+      apiFetch(`/api/pokemon/items/${id}`, { method: 'PATCH', body: JSON.stringify({ ebaySearchQuery }) }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pokemon-items'] })
+      setEditItem(null)
+    },
   })
 
   const refreshMutation = useMutation({
@@ -254,9 +268,17 @@ export default function PokemonScreen() {
                   {item.currentPrice && (
                     <Text style={s.priceText}>{formatCurrency(item.currentPrice)}/u</Text>
                   )}
-                  <TouchableOpacity onPress={() => confirmDelete(item)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                    <Ionicons name="trash-outline" size={14} color={colors.danger} />
-                  </TouchableOpacity>
+                  <View style={{ flexDirection: 'row', gap: 10 }}>
+                    <TouchableOpacity
+                      onPress={() => { setEditItem(item); setEditQuery(item.ebaySearchQuery ?? '') }}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                      <Ionicons name="search-outline" size={14} color={colors.accent} />
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => confirmDelete(item)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                      <Ionicons name="trash-outline" size={14} color={colors.danger} />
+                    </TouchableOpacity>
+                  </View>
                 </View>
               </View>
             </View>
@@ -279,6 +301,67 @@ export default function PokemonScreen() {
           </View>
         )}
       </ScrollView>
+
+      {/* ── Modal édition recherche eBay ─────────────────────────────── */}
+      <Modal visible={!!editItem} transparent animationType="slide">
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <TouchableOpacity style={s.overlay} onPress={() => setEditItem(null)} activeOpacity={1}>
+            <TouchableOpacity activeOpacity={1} onPress={() => {}}>
+              <View style={s.sheet}>
+                <View style={s.handle} />
+                <Text style={s.sheetTitle}>Recherche eBay</Text>
+                {editItem && (
+                  <>
+                    <View style={s.selectedCard}>
+                      {editItem.imageUrl && (
+                        <Image source={{ uri: editItem.imageUrl }} style={s.selectedImg} resizeMode="contain" />
+                      )}
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ color: colors.textPrimary, fontSize: fontSize.sm, fontWeight: '700' }} numberOfLines={2}>
+                          {editItem.name}
+                        </Text>
+                        {editItem.setName && (
+                          <Text style={{ color: colors.textMuted, fontSize: fontSize.xs, marginTop: 2 }}>{editItem.setName}</Text>
+                        )}
+                      </View>
+                    </View>
+
+                    <Text style={s.label}>Requête eBay (colle un titre d'annonce)</Text>
+                    <TextInput
+                      style={[s.input, { minHeight: 56 }]}
+                      value={editQuery}
+                      onChangeText={setEditQuery}
+                      placeholder="ex: Mega Zygarde EX Full Art 120/088 FR NM"
+                      placeholderTextColor={colors.textMuted}
+                      multiline
+                    />
+                    <Text style={{ color: colors.textMuted, fontSize: fontSize.xs }}>
+                      Laisse vide pour utiliser la recherche automatique.
+                    </Text>
+                  </>
+                )}
+
+                <View style={{ flexDirection: 'row', gap: 10, marginTop: 8 }}>
+                  <TouchableOpacity style={s.cancelBtn} onPress={() => setEditItem(null)} activeOpacity={0.7}>
+                    <Text style={{ color: colors.textSecondary, fontWeight: '600', fontSize: fontSize.sm }}>Annuler</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[s.confirmBtn, editMutation.isPending && { opacity: 0.6 }]}
+                    onPress={() => editItem && editMutation.mutate({ id: editItem.id, ebaySearchQuery: editQuery.trim() })}
+                    disabled={editMutation.isPending}
+                    activeOpacity={0.8}
+                  >
+                    {editMutation.isPending
+                      ? <ActivityIndicator color={colors.background} size="small" />
+                      : <Text style={{ color: colors.background, fontWeight: '700', fontSize: fontSize.sm }}>Enregistrer</Text>
+                    }
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </KeyboardAvoidingView>
+      </Modal>
 
       {/* ── Modal ajout ──────────────────────────────────────────────── */}
       <Modal visible={showForm} transparent animationType="slide">
