@@ -32,6 +32,7 @@ interface PokemonItem {
   currency:         string
   notes:            string | null
   ebaySearchQuery:  string | null
+  manualPrice:      number | null
 }
 
 interface SearchResult {
@@ -71,6 +72,7 @@ export default function PokemonScreen() {
   // Edit modal
   const [editItem, setEditItem] = useState<PokemonItem | null>(null)
   const [editQuery, setEditQuery] = useState('')
+  const [editManualPrice, setEditManualPrice] = useState('')
 
   const { data: items = [], isLoading, refetch, isRefetching } = useQuery<PokemonItem[]>({
     queryKey: ['pokemon-items'],
@@ -91,8 +93,11 @@ export default function PokemonScreen() {
   })
 
   const editMutation = useMutation({
-    mutationFn: ({ id, ebaySearchQuery }: { id: string; ebaySearchQuery: string }) =>
-      apiFetch(`/api/pokemon/items/${id}`, { method: 'PATCH', body: JSON.stringify({ ebaySearchQuery }) }),
+    mutationFn: ({ id, ebaySearchQuery, manualPrice }: { id: string; ebaySearchQuery: string; manualPrice: string }) =>
+      apiFetch(`/api/pokemon/items/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ ebaySearchQuery, manualPrice: manualPrice !== '' ? manualPrice : null }),
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pokemon-items'] })
       setEditItem(null)
@@ -108,7 +113,7 @@ export default function PokemonScreen() {
   })
 
   const totalInvested = items.reduce((s, i) => s + i.purchasePrice * i.quantity, 0)
-  const totalCurrent  = items.reduce((s, i) => s + (i.currentPrice ?? i.purchasePrice) * i.quantity, 0)
+  const totalCurrent  = items.reduce((s, i) => s + (i.manualPrice ?? i.currentPrice ?? i.purchasePrice) * i.quantity, 0)
   const totalGain     = totalCurrent - totalInvested
   const isPos         = totalGain >= 0
 
@@ -230,7 +235,7 @@ export default function PokemonScreen() {
 
         {/* ── Liste des cartes ────────────────────────────────────────── */}
         {items.map(item => {
-          const current   = item.currentPrice ?? item.purchasePrice
+          const current   = item.manualPrice ?? item.currentPrice ?? item.purchasePrice
           const invested  = item.purchasePrice * item.quantity
           const value     = current * item.quantity
           const gain      = value - invested
@@ -270,7 +275,7 @@ export default function PokemonScreen() {
                   )}
                   <View style={{ flexDirection: 'row', gap: 10 }}>
                     <TouchableOpacity
-                      onPress={() => { setEditItem(item); setEditQuery(item.ebaySearchQuery ?? '') }}
+                      onPress={() => { setEditItem(item); setEditQuery(item.ebaySearchQuery ?? ''); setEditManualPrice(item.manualPrice !== null ? String(item.manualPrice) : '') }}
                       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                     >
                       <Ionicons name="search-outline" size={14} color={colors.accent} />
@@ -326,7 +331,20 @@ export default function PokemonScreen() {
                       </View>
                     </View>
 
-                    <Text style={s.label}>Requête eBay (colle un titre d'annonce)</Text>
+                    <Text style={s.label}>Prix actuel manuel (€)</Text>
+                    <TextInput
+                      style={s.input}
+                      value={editManualPrice}
+                      onChangeText={setEditManualPrice}
+                      placeholder="ex: 45.00"
+                      placeholderTextColor={colors.textMuted}
+                      keyboardType="numeric"
+                    />
+                    <Text style={{ color: colors.warning, fontSize: fontSize.xs }}>
+                      Si renseigné, la maj automatique est désactivée. Vide = repasser en auto.
+                    </Text>
+
+                    <Text style={[s.label, { marginTop: 4 }]}>Requête eBay (colle un titre d&apos;annonce)</Text>
                     <TextInput
                       style={[s.input, { minHeight: 56 }]}
                       value={editQuery}
@@ -347,7 +365,7 @@ export default function PokemonScreen() {
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[s.confirmBtn, editMutation.isPending && { opacity: 0.6 }]}
-                    onPress={() => editItem && editMutation.mutate({ id: editItem.id, ebaySearchQuery: editQuery.trim() })}
+                    onPress={() => editItem && editMutation.mutate({ id: editItem.id, ebaySearchQuery: editQuery.trim(), manualPrice: editManualPrice.trim() })}
                     disabled={editMutation.isPending}
                     activeOpacity={0.8}
                   >
